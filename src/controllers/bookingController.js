@@ -1,21 +1,80 @@
+const db = require("../models/db");
+
 exports.bookSeat = (req, res) => {
-    const { user_id } = req.user;
-    const { train_id } = req.body;
+  const { train_id, user_id, seats } = req.body;
 
-    db.query("SELECT available_seats FROM trains WHERE id = ?", [train_id], (err, result) => {
-        if (err || result.length === 0) return res.status(400).json({ message: "Train not found" });
+  if (!train_id || !user_id || !seats) {
+    return res
+      .status(400)
+      .json({ message: "Train ID, User ID, and Seats are required" });
+  }
 
-        if (result[0].available_seats > 0) {
-            db.query("UPDATE trains SET available_seats = available_seats - 1 WHERE id = ?", [train_id], (err) => {
-                if (err) return res.status(500).json({ message: "Booking failed" });
+  db.query(
+    "SELECT available_seats FROM trains WHERE id = ?",
+    [train_id],
+    (err, results) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ message: "Error fetching train details", error: err });
+      }
 
-                db.query("INSERT INTO bookings (user_id, train_id) VALUES (?, ?)", [user_id, train_id], (err) => {
-                    if (err) return res.status(500).json({ message: "Booking failed" });
-                    res.json({ message: "Seat booked successfully" });
-                });
-            });
-        } else {
-            res.status(400).json({ message: "No seats available" });
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Train not found" });
+      }
+
+      const availableSeats = results[0].available_seats;
+
+      if (seats > availableSeats) {
+        return res.status(400).json({ message: "Not enough available seats" });
+      }
+
+      const newAvailableSeats = availableSeats - seats;
+
+      db.query(
+        "UPDATE trains SET available_seats = ? WHERE id = ?",
+        [newAvailableSeats, train_id],
+        (err) => {
+          if (err) {
+            return res
+              .status(500)
+              .json({ message: "Error updating available seats", error: err });
+          }
+
+          db.query(
+            "INSERT INTO bookings (user_id, train_id, status) VALUES (?, ?, ?)",
+            [user_id, train_id, "confirmed"],
+            (err) => {
+              if (err) {
+                return res
+                  .status(500)
+                  .json({ message: "Error booking seat", error: err });
+              }
+
+              res.json({ message: "Booking successful" });
+            }
+          );
         }
-    });
+      );
+    }
+  );
+};
+
+exports.getBookingDetails = (req, res) => {
+  const { user_id } = req.params;
+  db.query(
+    "SELECT * FROM bookings WHERE user_id = ?",
+    [user_id],
+    (err, results) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ message: "Error fetching booking details", error: err });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "No bookings found" });
+      }
+      res.json({ bookings: results });
+    }
+  );
 };
