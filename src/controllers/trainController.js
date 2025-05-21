@@ -1,5 +1,6 @@
 const db = require("../models/db");
 
+
 exports.getTrains = (req, res) => {
     const { source, destination } = req.query;
 
@@ -8,8 +9,10 @@ exports.getTrains = (req, res) => {
     }
 
     const query = `
-        SELECT * FROM trains
-        WHERE source = ? AND destination = ?`;
+        SELECT id, name, source, destination, total_seats, available_seats
+        FROM trains
+        WHERE source = ? AND destination = ?
+    `;
 
     db.query(query, [source, destination], (err, results) => {
         if (err) {
@@ -20,18 +23,36 @@ exports.getTrains = (req, res) => {
             return res.status(404).json({ message: "No trains found between this route" });
         }
 
-        res.json({ trains: results });
+        const trainsWithStatus = results.map(train => ({
+            ...train,
+            availabilityStatus: train.available_seats > 0 ? "Available" : "Full"
+        }));
+
+        res.json({ trains: trainsWithStatus });
     });
 };
 
+
 exports.addTrain = (req, res) => {
-    const { name, source, destination, total_seats, available_seats } = req.body;
-    db.query("INSERT INTO trains (name, source, destination, total_seats, available_seats) VALUES (?, ?, ?, ?, ?)", 
-        [name, source, destination, total_seats, available_seats],
-        (err, result) => {
-            if (err) return res.status(500).json({ message: "Error adding train" });
-            res.status(201).json({ message: "Train added successfully", trainId: result.insertId });
-        }
-    );
+  const { name, source, destination, total_seats, available_seats } = req.body;
+
+  if (!name || !source || !destination || total_seats == null || available_seats == null) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  if (total_seats <= 0 || available_seats < 0 || available_seats > total_seats) {
+    return res.status(400).json({ message: "Invalid seat values" });
+  }
+
+  db.query(
+    "INSERT INTO trains (name, source, destination, total_seats, available_seats) VALUES (?, ?, ?, ?, ?)",
+    [name, source, destination, total_seats, available_seats],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: "Error adding train", error: err });
+      }
+      res.status(201).json({ message: "Train added successfully", trainId: result.insertId });
+    }
+  );
 };
 
