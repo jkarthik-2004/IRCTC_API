@@ -54,7 +54,7 @@ false data to your system.
   GET /api/trains/getTrains?source=${src_station}&destination=${dest_station}
 ```
 ```http
-  GET /api/bookings/getBooking/${user_id}
+  GET /api/bookings/getBooking
 ```
 ```http
   POST /api/trains/add
